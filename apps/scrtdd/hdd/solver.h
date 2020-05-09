@@ -129,6 +129,8 @@ public:
     void solve(unsigned numIterations=0,
                double dampingFactor=0,
                double residualDownWeight=0,
+               double interEventDistDownWeight=0,
+               double xcorrInterEventDistDownWeight=0,
                double meanLonShiftConstraint=0,
                double meanLatShiftConstraint=0,
                double meanDepthShiftConstraint=0,
@@ -149,13 +151,21 @@ private:
 
     void computePartialDerivatives();
 
-    std::vector<double> computeResidualWeights(std::vector<double> residuals, const double alpha);
+    std::vector<double>
+    computeInterEventDistanceWeights(const double cutOffDistance,
+                                     const double cutOffDistanceXcorr) const;
 
-    void prepareDDSystem(std::array<double,4> meanShiftConstraint, double residualDownWeight);
+    std::vector<double>
+    computeResidualWeights(std::vector<double> residuals, const double alpha) const;
+
+    void prepareDDSystem(std::array<double,4> meanShiftConstraint,
+                         std::array<double,2> interEventDistanceDownWeight,
+                         double residualDownWeight);
 
     template <class T>
-    void _solve(unsigned numIterations, double dampingFactor,
-                double residualDownWeight, std::array<double,4> meanShiftConstraint,
+    void _solve(unsigned numIterations, double dampingFactor, double residualDownWeight,
+                std::array<double,2> interEventDistanceDownWeight,
+                std::array<double,4> meanShiftConstraint,
                 bool normalizeG);
 
     void loadSolutions();

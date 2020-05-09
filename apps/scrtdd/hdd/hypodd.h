@@ -120,6 +120,8 @@ struct Config {
         std::array<double,4> meanShiftConstraintEnd = {{0.,0.,0.,0.}}; // lon, lat, depth, time
         double downWeightingByResidualStart = 0.;
         double downWeightingByResidualEnd = 0.;
+        std::array<double,2> downWeightByInterEvDistStart = {{0.,0.}}; // absoluteTT, xcorr
+        std::array<double,2> downWeightByInterEvDistEnd   = {{0.,0.}}; // absoluteTT, xcorr 
         bool usePickUncertainty = false;
         double absTTDiffObsWeight = 1.0;
         double xcorrObsWeight = 1.0; 

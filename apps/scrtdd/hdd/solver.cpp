@@ -537,8 +537,54 @@ Solver::computePartialDerivatives()
     }
 }
 
+
+/*
+ * From Waldhauser's:
+ *
+ * W = max^b ( 0, 1 - (dist/cutOffDistance)^a )
+ *
+ */
 vector<double>
-Solver::computeResidualWeights(vector<double> residuals, const double alpha)
+Solver::computeInterEventDistanceWeights(const double cutOffDistance,
+                                         const double cutOffDistanceXcorr) const
+{
+    const double a = 2;
+    const double b = 2;
+
+    if ( _observations.size() < 1 )
+    {
+        return vector<double>();
+    }
+
+    vector<double> weights( _observations.size() );
+
+    for ( const auto& kw: _observations )
+    {
+        unsigned obIdx = kw.first;
+        const Observation& obsrv = kw.second;
+
+        const EventParams& ev1Prm = _eventParams.at(obsrv.ev1Idx);
+        const EventParams& ev2Prm = _eventParams.at(obsrv.ev1Idx);
+
+        double interEvDistance = computeDistance(ev1Prm.lat, ev1Prm.lon, ev1Prm.depth,
+                                                 ev2Prm.lat, ev2Prm.lon, ev2Prm.depth);
+
+        const double c = obsrv.isXcorr ? cutOffDistanceXcorr : cutOffDistance;
+
+        double weight = 1.;
+        if ( c != 0 )
+        {
+            weight -= std::pow(interEvDistance/c, a);
+            weight = std::max(weight, 0.);
+            weight = std::pow(weight, b);
+        }
+        weights[obIdx] = weight;
+    }
+
+    return weights;
+}
+vector<double>
+Solver::computeResidualWeights(vector<double> residuals, const double alpha) const
 {
     if ( residuals.size() < 1 )
     {
@@ -575,7 +621,9 @@ Solver::computeResidualWeights(vector<double> residuals, const double alpha)
 
 
 void
-Solver::prepareDDSystem(array<double,4> meanShiftConstraint, double residualDownWeight)
+Solver::prepareDDSystem(array<double,4> meanShiftConstraint,
+                        array<double,2> interEventDistanceDownWeight,
+                        double residualDownWeight)
 {
     computePartialDerivatives();
 
@@ -648,6 +696,21 @@ Solver::prepareDDSystem(array<double,4> meanShiftConstraint, double residualDown
     _dd->W[_dd->nObs+2] = meanShiftConstraint[2];
     _dd->W[_dd->nObs+3] = meanShiftConstraint[3];
 
+
+    // downweight observations by inter-event distance
+    if ( interEventDistanceDownWeight[0] > 0 || interEventDistanceDownWeight[1] > 0)
+    {
+        vector<double> interEventWeights =
+            computeInterEventDistanceWeights(interEventDistanceDownWeight[0],
+                                             interEventDistanceDownWeight[1]);
+
+        for ( unsigned obIdx = 0; obIdx < _dd->nObs; obIdx++ )
+        {
+            _dd->W[obIdx] *= interEventWeights[obIdx];
+            _dd->d[obIdx] *= interEventWeights[obIdx];
+        }
+    }
+
     // downweight observations by residuals
     if ( residualDownWeight > 0 )
     {
@@ -671,6 +734,8 @@ void
 Solver::solve(unsigned numIterations,
               double dampingFactor,
               double residualDownWeight,
+              double interEventDistDownWeight,
+              double xcorrInterEventDistDownWeight,
               double meanLonShiftConstraint,
               double meanLatShiftConstraint,
               double meanDepthShiftConstraint,
@@ -689,15 +754,21 @@ Solver::solve(unsigned numIterations,
         meanTTShiftConstraint,
     };
 
+    std::array<double,2> interEventDistanceDownWeight = {
+        interEventDistDownWeight, xcorrInterEventDistDownWeight
+    };
+
     if ( _type == "LSQR" )
     {
         _solve<lsqrBase>(numIterations, dampingFactor, residualDownWeight,
-                         meanShiftConstraint, normalizeG);
+                         interEventDistanceDownWeight, meanShiftConstraint,
+                         normalizeG);
     }
     else if ( _type == "LSMR" )
     {
         _solve<lsmrBase>(numIterations, dampingFactor, residualDownWeight,
-                         meanShiftConstraint, normalizeG);
+                         interEventDistanceDownWeight, meanShiftConstraint,
+                         normalizeG); 
     }
     else
     {
@@ -707,13 +778,12 @@ Solver::solve(unsigned numIterations,
 
 
 template <class T>
-void Solver::_solve(unsigned numIterations,
-                    double dampingFactor,
-                    double residualDownWeight,
-                    array<double,4> meanShiftConstraint,
-                    bool normalizeG)
+void Solver::_solve(unsigned numIterations, double dampingFactor, double residualDownWeight,
+                std::array<double,2> interEventDistanceDownWeight,
+                std::array<double,4> meanShiftConstraint,
+                bool normalizeG)
 {
-    prepareDDSystem(meanShiftConstraint, residualDownWeight);
+    prepareDDSystem(meanShiftConstraint, interEventDistanceDownWeight, residualDownWeight);
 
     Adapter<T> solver;
     solver.setDDSytem(_dd);

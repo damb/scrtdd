@@ -479,6 +479,10 @@ HypoDD::relocate(CatalogPtr& catalog,
                                                       _cfg.solver.meanShiftConstraintEnd[2]); 
         double meanTTShiftConstraint = interpolate(_cfg.solver.meanShiftConstraintStart[3],
                                                     _cfg.solver.meanShiftConstraintEnd[3]);
+        double interEventDistDownWeight = interpolate(_cfg.solver.downWeightByInterEvDistStart[0],
+                                                      _cfg.solver.downWeightByInterEvDistStart[1]);
+        double xcorrInterEventDistDownWeight = interpolate(_cfg.solver.downWeightByInterEvDistEnd[0],
+                                                           _cfg.solver.downWeightByInterEvDistEnd[1]);
         double absTTDiffObsWeight = interpolate(1.0, _cfg.solver.absTTDiffObsWeight);
         double xcorrObsWeight     = interpolate(1.0, _cfg.solver.xcorrObsWeight);
 
@@ -509,7 +513,8 @@ HypoDD::relocate(CatalogPtr& catalog,
         //
         try {
             solver.solve(_cfg.solver.solverIterations, dampingFactor,
-                         downWeightingByResidual, meanLonShiftConstraint,
+                         downWeightingByResidual, interEventDistDownWeight,
+                         xcorrInterEventDistDownWeight, meanLonShiftConstraint,
                          meanLatShiftConstraint,  meanDepthShiftConstraint,
                          meanTTShiftConstraint, _cfg.solver.L2normalization);
         } catch ( exception &e ) {
